@@ -10,7 +10,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-const tokenTTL = 8 * time.Hour
+const tokenTTL = 72 * time.Hour
 
 var jwtSecret = []byte("todo-scheduler-secret-key")
 
