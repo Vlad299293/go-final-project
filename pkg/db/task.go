@@ -29,8 +29,8 @@ func AddTask(task *Task) (int64, error) {
 func GetTask(id string) (*Task, error) {
 	var t Task
 
-	err := db.QueryRow(`SELECT * FROM scheduler WHERE id = ?`, id).
-		Scan(&t.ID, &t.Date, &t.Title, &t.Comment, &t.Repeat)
+	query := `SELECT id, date, title, comment, repeat FROM scheduler WHERE id = ?`
+	err := db.QueryRow(query, id).Scan(&t.ID, &t.Date, &t.Title, &t.Comment, &t.Repeat)
 	if err != nil {
 		return nil, errors.New("задача не найдена")
 	}
@@ -92,18 +92,19 @@ func UpdateDate(next string, id string) error {
 }
 
 func Tasks(limit int) ([]*Task, error) {
-	return tasksQuery(`SELECT * FROM scheduler ORDER BY date LIMIT ?`, limit)
+	query := `SELECT id, date, title, comment, repeat FROM scheduler ORDER BY date LIMIT ?`
+	return tasksQuery(query, limit)
 }
 
 func TasksSearch(search string, limit int) ([]*Task, error) {
 	if date, err := time.Parse("02.01.2006", search); err == nil {
-		return tasksQuery(`SELECT * FROM scheduler WHERE date = ? ORDER BY date LIMIT ?`,
-			date.Format(dateFormat), limit)
+		query := `SELECT id, date, title, comment, repeat FROM scheduler WHERE date = ? ORDER BY date LIMIT ?`
+		return tasksQuery(query, date.Format(dateFormat), limit)
 	}
 
 	like := "%" + search + "%"
-	return tasksQuery(`SELECT * FROM scheduler WHERE title LIKE ? OR comment LIKE ? ORDER BY date LIMIT ?`,
-		like, like, limit)
+	query := `SELECT id, date, title, comment, repeat FROM scheduler WHERE title LIKE ? OR comment LIKE ? ORDER BY date LIMIT ?`
+	return tasksQuery(query, like, like, limit)
 }
 
 func tasksQuery(query string, args ...any) ([]*Task, error) {
@@ -120,6 +121,10 @@ func tasksQuery(query string, args ...any) ([]*Task, error) {
 			return nil, err
 		}
 		tasks = append(tasks, &t)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	return tasks, nil

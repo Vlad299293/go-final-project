@@ -3,6 +3,8 @@ package main
 import (
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"go_final_project/pkg/db"
 	"go_final_project/pkg/server"
@@ -20,7 +22,15 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if err := server.Run(); err != nil {
-		log.Fatal(err)
-	}
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		if err := server.Run(); err != nil {
+			log.Fatal(err)
+		}
+	}()
+
+	<-stop
+	db.Close()
 }
