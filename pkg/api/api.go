@@ -1,8 +1,13 @@
 package api
 
-import "net/http"
+import (
+	"net/http"
+	"os"
+)
 
 func Init() {
+	appPassword = os.Getenv("TODO_PASSWORD")
+
 	http.HandleFunc("/api/nextdate", nextDateHandler)
 	http.HandleFunc("/api/signin", signInHandler)
 	http.HandleFunc("/api/task", auth(taskHandler))

@@ -5,15 +5,16 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
-const tokenTTL = 8 * time.Hour
+const tokenTTL = 72 * time.Hour
 
 var jwtSecret = []byte("todo-scheduler-secret-key")
+
+var appPassword string
 
 type authClaims struct {
 	PasswordHash string `json:"password_hash"`
@@ -31,18 +32,17 @@ func signInHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJson(w, map[string]string{"error": "ошибка десериализации JSON"})
+		writeError(w, http.StatusBadRequest, "ошибка десериализации JSON")
 		return
 	}
 
-	pass := os.Getenv("TODO_PASSWORD")
-	if req.Password != pass {
-		writeJson(w, map[string]string{"error": "неверный пароль"})
+	if req.Password != appPassword {
+		writeError(w, http.StatusUnauthorized, "неверный пароль")
 		return
 	}
 
 	claims := authClaims{
-		PasswordHash: passwordHash(pass),
+		PasswordHash: passwordHash(appPassword),
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(tokenTTL)),
 		},
@@ -51,18 +51,17 @@ func signInHandler(w http.ResponseWriter, r *http.Request) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signed, err := token.SignedString(jwtSecret)
 	if err != nil {
-		writeJson(w, map[string]string{"error": err.Error()})
+		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	writeJson(w, map[string]string{"token": signed})
+	writeJson(w, http.StatusOK, map[string]string{"token": signed})
 }
 
 func auth(next http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// смотрим наличие пароля
-		pass := os.Getenv("TODO_PASSWORD")
-		if len(pass) > 0 {
+		if len(appPassword) > 0 {
 			var jwtStr string // JWT-токен из куки
 			// получаем куку
 			cookie, err := r.Cookie("token")
@@ -73,10 +72,10 @@ func auth(next http.HandlerFunc) http.HandlerFunc {
 			// здесь код для валидации и проверки JWT-токена
 			token, err := jwt.ParseWithClaims(jwtStr, &authClaims{}, func(t *jwt.Token) (any, error) {
 				return jwtSecret, nil
-			})
+			}, jwt.WithValidMethods([]string{"HS256"}))
 			if err == nil && token.Valid {
 				if claims, ok := token.Claims.(*authClaims); ok {
-					valid = claims.PasswordHash == passwordHash(pass)
+					valid = claims.PasswordHash == passwordHash(appPassword)
 				}
 			}
 
